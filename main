@@ -1,0 +1,653 @@
+#include <SFML/Graphics.hpp>
+#include <optional>
+#include <vector>
+#include <string>
+#include <random>
+#include <cmath>
+//GPT did gave idea of i-- and continue;
+//GPT FIXED RANDOMCANNON RANGE FROM (0, 8) TO (0, 7)
+//GPT CAUGHT THE SILLY ERROR OF ME DRAWING THE BASE AFTER TEXT AND MADE THE ENEMY TEXTS RENDER
+//GPT caught that i didnt erase bullets after collision with cannon
+//GPT provided explosion time subtraction to act as a delay.
+//GPT caught a ton (5?) silly mistakes in cannon and bullet loop
+//Overall, this is a beginner project.
+
+
+
+
+struct star {
+    sf::CircleShape circ;
+    int radius = 5;
+    sf::Color color = sf::Color::White;
+    star(sf::Vector2f pos) {
+        circ.setRadius(radius);
+        circ.setPosition(pos);
+        circ.setFillColor(color);
+    }
+
+};
+
+struct explosion {
+    sf::CircleShape circ;
+    sf::Time spawnTime;
+    explosion(sf::Vector2f pos) {
+        circ.setRadius(20);
+        circ.setFillColor(sf::Color(255, 162, 85));
+        circ.setPosition(pos);
+    }
+
+};
+
+struct shield {
+    sf::CircleShape circ;
+    int sh;
+    shield(sf::Vector2f pos, int radius) {
+        circ.setRadius(radius);
+        circ.setFillColor(sf::Color::Transparent);
+        circ.setOutlineThickness(7.f);
+        circ.setOutlineColor(sf::Color::Blue);
+        circ.setPosition(pos);
+    }
+
+};
+
+
+struct bullet {
+    sf::CircleShape circ;
+    int radius = 3;
+    sf::Color color = sf::Color::Green;
+    bullet() {
+        circ.setRadius(radius);
+        circ.setFillColor(color);
+    }
+
+};
+
+struct RepublicShip {
+    sf::ConvexShape body;
+    sf::RectangleShape rect;
+    sf::RectangleShape sq1;
+    sf::RectangleShape sq2;
+    void move(sf::Vector2f dist) {
+        body.move(dist);
+    }
+    void rotate(sf::Angle deg) {
+        body.rotate(deg);
+    }
+    RepublicShip() {
+        body.setPosition({350.f, 1000.f});
+        body.setPointCount(3);
+        body.setPoint(0, {0.f, 15.f});
+        body.setPoint(1, {15.f, 50.f});
+        body.setPoint(2, {-15.f, 50.f});
+        body.setPosition({345.f, 1000.f});  
+        body.setOrigin(body.getGeometricCenter());
+
+    }
+
+};
+
+struct bomb {
+    sf::CircleShape hex;
+    bomb(sf::Vector2f pos) {
+        hex.setPosition(pos);
+        hex.setPointCount(6);
+        hex.setFillColor(sf::Color(128, 128, 128));
+        hex.setRadius(10);
+    }
+
+};
+
+struct drone {
+    sf::CircleShape pent;
+    drone(sf::Vector2f pos) {
+        pent.setPosition(pos);
+        pent.setPointCount(5);
+        pent.setFillColor(sf::Color::Red);
+        pent.setRadius(20);
+    }
+};
+
+
+struct Base {
+    sf::RectangleShape base;
+    Base() {
+        base.setPosition({0, 0});
+        base.setSize({700, 300});
+        base.setFillColor(sf::Color(128, 128, 128));
+    }
+};
+
+struct cannon {
+    sf::CircleShape circ;
+    sf::RectangleShape rect;
+    int health = 10;
+    cannon(sf::Vector2f pos) {
+        circ.setRadius(20);
+        circ.setFillColor(sf::Color(128, 128, 128));
+        rect.setSize({40, 40});
+        rect.setFillColor(sf::Color(128, 128, 128));
+        circ.setPosition(pos);
+        rect.setPosition({pos.x, pos.y - 20});
+    } 
+};
+
+struct healthbar {
+    sf::RectangleShape bar;
+    sf::Vector2f size = {150, 20};
+    int health; 
+    float downSize;
+    healthbar(sf::Vector2f pos) {
+        bar.setSize(size);
+        bar.setFillColor(sf::Color::Green);
+        bar.setPosition(pos);
+    }
+};
+
+
+
+
+
+
+//makes stars-----------------
+std::vector<star> setStars() {
+    std::vector<star> Stars;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distr(0, 1280);
+    std::uniform_int_distribution<> dist(0, 700);
+    for (int i = 0; i < 50; i++) {
+        float x = dist(gen);
+        float y = distr(gen);
+        star tempStar = star({x, y});
+        Stars.push_back(tempStar);
+
+
+    }
+    return Stars;
+
+
+}
+
+
+
+int main() {
+    sf::RenderWindow window(
+        sf::VideoMode({700, 1280}),
+        "SFML"
+    );
+    window.setFramerateLimit(60);
+    //Basics
+    bool gameOver = true;
+    bool gameStart = false;
+    bool gameWon = false;
+    bool gameLost = false;
+    //setting up-------------------
+    float starVelocity = 0.5;
+    float bulletVelocity = -3.0;
+    float EXV = 0;
+    float EYV = 3.0;
+    float XV;
+    float YV;
+    float rad_theta;
+    float enemyRadTheta;
+    int randomCannon;
+    float newLaserX;
+    std::vector<star> Stars = setStars();
+    std::vector<bullet> Bullets;
+    std::vector<sf::Vector2f> BulletDirections;
+    std::vector<cannon> Cannons;
+    std::vector<bullet> enemyBullets;
+    std::vector<sf::Vector2f> enemyBulletDirections;
+    std::vector<bomb> Bombs;
+    std::vector<drone> Drones;
+    std::vector<explosion> Explosions;
+    std::vector<bullet> FiredBullets;
+
+    //healthbars-------------------------------
+    healthbar enemyShipHealth({500, 120});
+    healthbar enemyShieldHealth({500, 240});
+    healthbar shipHealth({500, 1200});
+    healthbar shipShieldHealth({500, 1100});
+    //LASER
+    sf::RectangleShape laser;
+    laser.setFillColor(sf::Color::Transparent);
+    laser.setSize({40, 980});
+    laser.setPosition({0, -680});
+    //person/player----------------
+    RepublicShip person;
+    person.body.setFillColor(sf::Color::White);
+    shield shipShield({315, 970}, 30);
+    shipHealth.health = 20;
+    shipHealth.downSize = 7.5;
+    shipShieldHealth.health = 20;
+    shipShieldHealth.downSize = 7.5;
+
+    //degrees
+    int theta = 0;
+    float pi = 3.14159265f;
+    //reload
+    bool isCool = true;
+    bool startReload = false;
+    int reloadLeft;
+    //enemy -----------------
+    Base enemyBase;
+    enemyShipHealth.health = 80;
+    enemyShipHealth.downSize = 150.f / 80.f;
+    sf::RectangleShape enemyShield;
+    enemyShield.setPosition({0.f, 340.f});
+    enemyShield.setSize({700.f, 30.f});
+    enemyShield.setFillColor(sf::Color::Blue);
+    enemyShieldHealth.health = 60;
+    enemyShieldHealth.downSize = 150.f/60.f;
+    //cannons--------------------
+    for (int i = 0; i < 8; i++) {
+        cannon c({float((30 + i * 700 / 8)), 320.f});
+        Cannons.push_back(c);
+
+    }
+    //bullet vars --------
+    sf::Vector2f tempBulPos;
+    sf::Vector2f bulStartPos;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> angle(60, 120);
+    std::uniform_int_distribution<> randCannon(0, 7);
+    std::uniform_int_distribution<> droneAngle(0, 180);
+
+    //VERY IMPORTANT! TIME-----------
+    sf::Clock clock;
+    sf::Time interval = sf::seconds(1.0);
+    sf::Time timetracker = sf::Time::Zero;
+    sf::Clock globalClock;
+    sf::Time eInterval = sf::seconds(0.2);
+    sf::Time reloadInterval = sf::seconds(3.0);
+    sf::Time reloadTime;
+    sf::Time currentTime;
+    //TEXT--------------
+    const sf::Font font("arial.ttf");
+    sf::Text shieldText(font);
+    shieldText.setString("Shield: ");
+    shieldText.setCharacterSize(32);
+    shieldText.setPosition({390, 1090});
+    shieldText.setFillColor(sf::Color::Blue);
+    sf::Text shipText(font);
+    shipText.setString("Ship: ");
+    shipText.setCharacterSize(32);
+    shipText.setPosition({390, 1190});
+    shipText.setFillColor(sf::Color::Blue);
+    sf::Text enemyShieldText(font);
+    enemyShieldText.setString("Shield: ");
+    enemyShieldText.setCharacterSize(32);
+    enemyShieldText.setFillColor(sf::Color::Red);
+    enemyShieldText.setPosition({390, 230});
+    sf::Text enemyText(font);
+    enemyText.setString("Enemy: ");
+    enemyText.setCharacterSize(32);
+    enemyText.setFillColor(sf::Color::Red);
+    enemyText.setPosition({390, 110});
+    sf::Text loseText(font);
+    loseText.setString("You lose!");
+    loseText.setCharacterSize(36);
+    loseText.setFillColor(sf::Color::Green);
+    loseText.setPosition({240, 330});
+    sf::Text winText(font);
+    winText.setString("You win!");
+    winText.setCharacterSize(36);
+    winText.setFillColor(sf::Color::White);
+    winText.setPosition({240, 330});
+
+
+    sf::Text startText(font, "Press S to start", 36);
+    startText.setPosition({240, 330});
+    sf::Text reloadInfo(font, "Notes: There is a reload period of 3\nseconds every 10 bullets, so be careful.", 36);
+    reloadInfo.setPosition({20, 370});
+    sf::Text otherInfo(font, "You cannot kill drones (the red pentagons).\nDestroying cannons does not take\naway from base health.", 36);
+    otherInfo.setPosition({20, 470}); 
+    sf::Text goodluck(font, "GOOD LUCK\nSIMON", 100);
+    goodluck.setPosition({50, 900});
+    sf::Text reloadText(font, "Reloading", 36);
+    reloadText.setPosition({50, 1090});
+
+
+
+
+
+    while (window.isOpen()) { 
+        
+        while (const std::optional event = window.pollEvent())
+        {
+            if (event->is<sf::Event::Closed>()) window.close();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape)) window.close();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+                gameOver = false;
+                gameStart = true;
+
+            }
+            if (event->is<sf::Event::KeyPressed>()) {
+                auto keyEvent = event->getIf<sf::Event::KeyPressed>();
+
+                if (keyEvent && keyEvent->code == sf::Keyboard::Key::Space && isCool)
+                {
+                    bullet fire;
+                    fire.circ.setFillColor(sf::Color::Red);
+                    fire.circ.setPosition(bulStartPos);
+
+                    BulletDirections.push_back({XV * 1.5f, YV * 1.5f});
+                    Bullets.push_back(fire);
+                    FiredBullets.push_back(fire);
+                }
+            }
+        }
+        
+        if (gameOver == false) {
+        bulStartPos = person.body.getTransform().transformPoint(person.body.getPoint(0));
+        rad_theta = theta * pi/180;
+        XV = 2 * std::cos(pi / 2 - rad_theta);
+        YV = 2 * std::sin(pi / 2 - rad_theta) * -1;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+            if (person.body.getGlobalBounds().findIntersection(enemyBase.base.getGlobalBounds())) {
+                gameOver = true;
+                gameLost = true;
+            }
+            person.move({XV, YV}); 
+            shipShield.circ.move({XV, YV});
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)) {
+            person.rotate(sf::degrees(-4.f)); 
+            theta -= 4;
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) {
+            person.rotate(sf::degrees(4.f)); 
+            theta += 4; 
+        }
+        if (theta == 360 || theta == -360) {
+            //theta = 0;
+        }
+        //moving stars
+        for (int i = 0; i < Stars.size(); i++) {
+            float starY = Stars[i].circ.getPosition().y;
+            if (starY < 1280) {
+            Stars[i].circ.move({0, starVelocity});
+            }
+            else {
+                float starX = Stars[i].circ.getPosition().x;
+                Stars[i].circ.setPosition({starX, -6});
+            }
+        }
+        //enemy bullets --------------
+        timetracker += clock.restart();
+        if (timetracker >= interval) {
+            for (int i = 0; i < Cannons.size(); i++) {
+            enemyRadTheta = angle(gen) * pi/180;
+            EXV = 3 * std::cos(enemyRadTheta);
+            EYV = 3 * std::sin(enemyRadTheta);
+            bullet enemyBullet;
+            enemyBullet.circ.setPosition(Cannons[i].circ.getPosition());
+            enemyBullets.push_back(enemyBullet);
+            enemyBulletDirections.push_back({EXV, EYV});  
+        } 
+        for (int i = 0; i < Drones.size(); i++) {
+            enemyRadTheta = droneAngle(gen) * pi / 180;
+            EXV = 3 * std::cos(enemyRadTheta);
+            EYV = 3 * std::sin(enemyRadTheta);
+            bullet droneBullet;
+            droneBullet.circ.setPosition({Drones[i].pent.getPosition().x + 10, Drones[i].pent.getPosition().y + 10});
+            enemyBullets.push_back(droneBullet);
+            enemyBulletDirections.push_back({EXV, EYV});
+        }
+        bomb newBomb({Cannons[randCannon(gen)].circ.getPosition()});
+        Bombs.push_back(newBomb);
+        if (randCannon(gen) == 1) {
+            drone newDrone(Cannons[randCannon(gen)].circ.getPosition());
+            Drones.push_back(newDrone);
+
+        }
+        timetracker -= interval;
+
+    }
+
+
+        //moving bullets and healthbar manipulation--------------
+        for (int i = 0; i < Bullets.size(); i++) {
+            Bullets[i].circ.move(BulletDirections[i]);
+            tempBulPos = Bullets[i].circ.getPosition();
+            if (tempBulPos.y < 280 || tempBulPos.y > 1280 || tempBulPos.x < 0 || tempBulPos.x > 700)  {
+                Bullets.erase(Bullets.begin() + i);
+                BulletDirections.erase(BulletDirections.begin() + i);
+                i--;
+                continue;
+            }
+            if (enemyShieldHealth.health > 0) {
+                if (Bullets[i].circ.getGlobalBounds().findIntersection(enemyShield.getGlobalBounds())) {
+                    Bullets.erase(Bullets.begin() + i);
+                    BulletDirections.erase(BulletDirections.begin() + i);
+                    enemyShieldHealth.health -= 1;
+                    enemyShieldHealth.bar.setSize({float(enemyShieldHealth.bar.getSize().x - enemyShieldHealth.downSize), enemyShieldHealth.bar.getSize().y});
+                    i--;
+                    continue;
+                }
+            } 
+            else {
+            if (Bullets[i].circ.getGlobalBounds().findIntersection(enemyBase.base.getGlobalBounds())) {
+                Bullets.erase(Bullets.begin() + i);
+                BulletDirections.erase(BulletDirections.begin() + i);
+                enemyShipHealth.health -= 1;
+                enemyShipHealth.bar.setSize({float(enemyShipHealth.bar.getSize().x - enemyShipHealth.downSize), enemyShipHealth.bar.getSize().y});
+                i--;
+                continue;
+
+            }
+        }
+        }
+        //bullet and cannon check
+        for (int i = 0; i < Bullets.size(); i++) {
+            for (int j = 0; j < Cannons.size(); j++) {
+                if (Bullets[i].circ.getGlobalBounds().findIntersection(Cannons[j].circ.getGlobalBounds())) {
+                    Bullets.erase(Bullets.begin() + i);
+                    BulletDirections.erase(BulletDirections.begin() + i);
+                    if (Cannons[j].health > 0) {
+                        Cannons[j].health -= 1;
+                    }
+                    else {
+                        explosion newE({Cannons[j].rect.getPosition()});
+                        newE.circ.setRadius(40);
+                        newE.spawnTime = globalClock.getElapsedTime();
+                        Explosions.push_back(newE);
+                        if (Cannons.size() > 0) randCannon = std::uniform_int_distribution<> (0, Cannons.size() - 1);
+                        Cannons.erase(Cannons.begin() + j);
+                        j--;
+
+                    }
+                    i--;
+                    continue;
+                    
+                }
+            }
+        }
+        
+
+        for (int i = 0; i < enemyBullets.size(); i++) {
+            tempBulPos = enemyBullets[i].circ.getPosition();
+            enemyBullets[i].circ.move(enemyBulletDirections[i]);
+            if (tempBulPos.y < 280 || tempBulPos.y > 1280 || tempBulPos.x < 0 || tempBulPos.x > 700) {
+                enemyBullets.erase(enemyBullets.begin() + i);
+                enemyBulletDirections.erase(enemyBulletDirections.begin() + i);
+                i--;
+                continue;
+            }
+            else if (shipShieldHealth.health <= 0) {
+            if (enemyBullets[i].circ.getGlobalBounds().findIntersection(person.body.getGlobalBounds())) {
+                enemyBulletDirections.erase(enemyBulletDirections.begin() + i);
+                enemyBullets.erase(enemyBullets.begin() + i);
+                shipHealth.bar.setSize({float(shipHealth.bar.getSize().x - shipHealth.downSize), shipHealth.bar.getSize().y});
+                shipHealth.health -= 1;
+                i--;
+                continue;
+            } }
+            else {
+                if (enemyBullets[i].circ.getGlobalBounds().findIntersection(shipShield.circ.getGlobalBounds())) {
+                    enemyBulletDirections.erase(enemyBulletDirections.begin() + i);
+                    enemyBullets.erase(enemyBullets.begin() + i);
+                    shipShieldHealth.health -= 1;
+                    shipShieldHealth.bar.setSize({float(shipShieldHealth.bar.getSize().x - shipShieldHealth.downSize), shipShieldHealth.bar.getSize().y});
+                    i--;
+                    continue;
+
+                }
+                
+
+            }
+        }
+
+
+        //moving Bombs
+
+        for (int i = 0; i < Bombs.size(); i++) {
+            Bombs[i].hex.move({0.f, 2.f});
+            if (Bombs[i].hex.getPosition().y > 1280) {
+                Bombs.erase(Bombs.begin() + i);
+                i--;
+                continue;
+            }
+            if (shipShieldHealth.health > 0) {
+                if (Bombs[i].hex.getGlobalBounds().findIntersection(shipShield.circ.getGlobalBounds())) {
+                    explosion newE({Bombs[i].hex.getPosition()});
+                    newE.spawnTime = globalClock.getElapsedTime();
+                    Bombs.erase(Bombs.begin() + i);
+                    shipShieldHealth.bar.setSize({shipShieldHealth.bar.getSize().x - shipShieldHealth.downSize * 5, shipShieldHealth.bar.getSize().y});
+                    shipShieldHealth.health -= 5;
+                    Explosions.push_back(newE);
+                    i--;
+                    continue;
+                }
+
+            }
+            else {
+                if (Bombs[i].hex.getGlobalBounds().findIntersection(person.body.getGlobalBounds())) {
+                    explosion newE({Bombs[i].hex.getPosition()});
+                    newE.spawnTime = globalClock.getElapsedTime();
+                    Bombs.erase(Bombs.begin() + i);
+                    shipHealth.bar.setSize({shipHealth.bar.getSize().x - shipHealth.downSize * 5, shipHealth.bar.getSize().y});
+                    shipHealth.health -= 5;
+                    Explosions.push_back(newE);
+                    i--;
+                    continue;
+
+                }
+
+            }
+        }
+
+        //Moving Drones
+        for (int i = 0; i < Drones.size(); i++) {
+            Drones[i].pent.move({0.f, 1.f});
+            if (Drones[i].pent.getPosition().y >= 1100) {
+                Drones.erase(Drones.begin() + i);
+                i--;
+                continue;
+            }
+        }
+        //checking explosions
+        currentTime = globalClock.getElapsedTime();
+        for (int i = 0; i < Explosions.size(); i++) {
+            if (currentTime - Explosions[i].spawnTime >= eInterval) {
+                Explosions.erase(Explosions.begin() + i);
+                i--;
+                continue;
+            }
+            
+        }
+        //reloading
+        if (FiredBullets.size() >= 15) {
+            isCool = false;
+            startReload = true;
+            FiredBullets.clear();
+        }
+        if (isCool == false) {
+            reloadLeft = 3 - (currentTime.asSeconds() - reloadTime.asSeconds()) + 1;
+            if (startReload) {
+                reloadTime = globalClock.getElapsedTime();
+                startReload = false;
+            }
+            if (currentTime - reloadTime >= reloadInterval) {
+                isCool = true;
+            }
+
+        }
+
+        reloadText.setString("Reloading " + std::to_string(reloadLeft));
+
+        
+        
+        window.clear();
+        if (!isCool) {
+            window.draw(reloadText);
+        }
+        for (int i = 0; i < Stars.size(); i++) {
+            window.draw(Stars[i].circ);
+        }
+        for (int i = 0; i < Bullets.size(); i++) {
+            window.draw(Bullets[i].circ);
+        }
+        for (int i = 0; i < enemyBullets.size(); i++) {
+            window.draw(enemyBullets[i].circ);
+        }
+        for (int i = 0; i < Bombs.size(); i++) {
+            window.draw(Bombs[i].hex);
+        }
+        for (int i = 0; i < Drones.size(); i++) {
+            window.draw(Drones[i].pent);
+        }
+        for (int i = 0; i < Explosions.size(); i++) {
+            window.draw(Explosions[i].circ);
+        }
+        window.draw(person.body);
+        if (shipShieldHealth.health > 0) window.draw(shipShield.circ);
+        if (enemyShipHealth.health > 0) {
+            window.draw(enemyBase.base);
+        }
+        else {
+            gameOver = true;
+            gameWon = true;
+        }
+        if (enemyShieldHealth.health > 0) {
+            window.draw(enemyShield);
+            window.draw(enemyShieldHealth.bar);
+        }
+        for (int i = 0; i < Cannons.size(); i++) {
+            window.draw(Cannons[i].circ);
+            window.draw(Cannons[i].rect);
+        }
+        if (enemyShipHealth.health > 0) window.draw(enemyShipHealth.bar);
+        if (shipHealth.health > 0) {
+            window.draw(shipHealth.bar);
+        }
+        else {
+            gameOver = true;
+            gameLost = true;
+        }
+        if (shipShieldHealth.health > 0) window.draw(shipShieldHealth.bar);
+        window.draw(laser);
+        window.draw(shieldText);
+        window.draw(shipText);
+        window.draw(enemyShieldText);
+        window.draw(enemyText);
+        window.display();
+    }
+    else {
+        window.clear();
+        if (gameLost) window.draw(loseText);
+        if (gameWon) window.draw(winText);
+        if (!gameStart) {
+            window.draw(startText);
+            window.draw(reloadInfo);
+            window.draw(otherInfo);
+            window.draw(goodluck);
+        }
+
+        window.display();
+    }
+}
+
+}
