@@ -4,7 +4,6 @@
 #include <string>
 #include <random>
 #include <cmath>
-//#include <iostream>
 //GPT did I--; AND CONTINUE IN EVERY LOOP;
 //GPT FIXED RANDOMCANNON RANGE FROM (0, 8) TO (0, 7)
 //GPT CAUGHT THE SILLY ERROR OF ME DRAWING THE BASE AFTER TEXT AND MADE THE ENEMY TEXTS RENDER
@@ -12,6 +11,15 @@
 //GPT provided explosion time subtraction to act as a delay.
 //GPT caught a ton (5?) silly mistakes in cannon and bullet loop
 //Overall, this is a beginner project.
+
+float aim(sf::Vector2f enemypos, sf::Vector2f origin) {
+    float x = enemypos.x - origin.x;
+    float y = enemypos.y - origin.y;
+    float r = std::sqrt(x * x + y * y);
+    float theta = std::acos(x/r);
+    return theta;
+    
+}
 
 
 
@@ -258,7 +266,7 @@ int main() {
 
     //VERY IMPORTANT! TIME-----------
     sf::Clock clock;
-    sf::Time interval = sf::seconds(0.7);
+    sf::Time interval = sf::seconds(1.6);
     sf::Time timetracker = sf::Time::Zero;
     sf::Clock globalClock;
     sf::Time eInterval = sf::seconds(0.2);
@@ -381,12 +389,13 @@ int main() {
         //enemy bullets --------------
         timetracker += clock.restart();
         if (timetracker >= interval) {
-            for (int i = 0; i < 4; i++) {
-            enemyRadTheta = angle(gen) * pi/180;
+            for (int i = 0; i < 3; i++) {
+            randomCannon = randCannon(gen);
+            enemyRadTheta = aim(person.body.getPosition(), Cannons[randomCannon].circ.getPosition());
             EXV = 3 * std::cos(enemyRadTheta);
             EYV = 3 * std::sin(enemyRadTheta);
             bullet enemyBullet;
-            enemyBullet.circ.setPosition(Cannons[randCannon(gen)].circ.getPosition());
+            enemyBullet.circ.setPosition(Cannons[randomCannon].circ.getPosition());
             enemyBullets.push_back(enemyBullet);
             enemyBulletDirections.push_back({EXV, EYV});  
         } 
@@ -544,6 +553,16 @@ int main() {
 
             }
         }
+        //checking explosions
+         currentTime = globalClock.getElapsedTime();
+        for (int i = 0; i < Explosions.size(); i++) {
+            if (currentTime - Explosions[i].spawnTime >= eInterval) {
+                Explosions.erase(Explosions.begin() + i);
+                i--;
+                continue;
+            }
+            
+        }
         if (enemyShieldHealth.health > 0) {
             if (person.body.getGlobalBounds().findIntersection(enemyShield.getGlobalBounds())) {
                 gameOver = true;
@@ -561,16 +580,6 @@ int main() {
                 i--;
                 continue;
             }
-        }
-        //checking explosions
-        currentTime = globalClock.getElapsedTime();
-        for (int i = 0; i < Explosions.size(); i++) {
-            if (currentTime - Explosions[i].spawnTime >= eInterval) {
-                Explosions.erase(Explosions.begin() + i);
-                i--;
-                continue;
-            }
-            
         }
         //reloading
         if (FiredBullets.size() >= 15) {
