@@ -4,14 +4,14 @@
 #include <string>
 #include <random>
 #include <cmath>
-//GPT CREDIT:
+//#include <iostream>
 //GPT did I--; AND CONTINUE IN EVERY LOOP;
 //GPT FIXED RANDOMCANNON RANGE FROM (0, 8) TO (0, 7)
 //GPT CAUGHT THE SILLY ERROR OF ME DRAWING THE BASE AFTER TEXT AND MADE THE ENEMY TEXTS RENDER
 //GPT caught that i didnt erase bullets after collision with cannon
 //GPT provided explosion time subtraction to act as a delay.
 //GPT caught a ton (5?) silly mistakes in cannon and bullet loop
-//Overall, this is a beginner project for learning.
+//Overall, this is a beginner project.
 
 float aim(sf::Vector2f enemypos, sf::Vector2f origin) {
     float x = enemypos.x - origin.x;
@@ -314,7 +314,7 @@ int main() {
     reloadInfo.setPosition({20, 370});
     sf::Text otherInfo(font, "You cannot kill drones (the red pentagons).\nDestroying cannons does not take\naway from base health.", 36);
     otherInfo.setPosition({20, 470}); 
-    sf::Text goodluck(font, "Controls:\nW: Move forward\nLeft Arrow: Turn left\nRight Arrow: Turn right\nSpace: Fire bullets", 36);
+    sf::Text goodluck(font, "Controls:\nUp arrow: Move forward\nLeft Arrow: Turn left\nRight Arrow: Turn right\nSpace: Fire bullets", 36);
     goodluck.setPosition({50, 900});
     sf::Text reloadText(font, "Reloading", 36);
     reloadText.setPosition({50, 1090});
@@ -357,7 +357,7 @@ int main() {
         rad_theta = theta * pi/180;
         XV = 2 * std::cos(pi / 2 - rad_theta);
         YV = 2 * std::sin(pi / 2 - rad_theta) * -1;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) {
             if (person.body.getGlobalBounds().findIntersection(enemyBase.base.getGlobalBounds())) {
                 gameOver = true;
                 gameLost = true;
