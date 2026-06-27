@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <optional>
 #include <vector>
 #include <string>
@@ -11,6 +12,7 @@
 //GPT caught that i didnt erase bullets after collision with cannon
 //GPT provided explosion time subtraction to act as a delay.
 //GPT caught a ton (5?) silly mistakes in cannon and bullet loop
+//GPT caught that i wasnt storing bullet sounds in vector (for person bullets)
 //Overall, this is a beginner project.
 
 float aim(sf::Vector2f enemypos, sf::Vector2f origin) {
@@ -18,6 +20,7 @@ float aim(sf::Vector2f enemypos, sf::Vector2f origin) {
     float y = enemypos.y - origin.y;
     float r = std::sqrt(x * x + y * y);
     float theta = std::acos(x/r);
+    if (y < 0) theta *= -1;
     return theta;
     
 }
@@ -85,7 +88,7 @@ struct RepublicShip {
         body.rotate(deg);
     }
     RepublicShip() {
-        body.setPosition({350.f, 1000.f});
+        //body.setPosition({350.f, 1000.f});
         body.setPointCount(3);
         body.setPoint(0, {0.f, 15.f});
         body.setPoint(1, {15.f, 50.f});
@@ -240,6 +243,8 @@ int main() {
     bool isCool = true;
     bool startReload = false;
     int reloadLeft;
+    //teleportation
+    int numports = 3;
     //enemy -----------------
     Base enemyBase;
     enemyShipHealth.health = 80;
@@ -306,18 +311,47 @@ int main() {
     winText.setCharacterSize(36);
     winText.setFillColor(sf::Color::White);
     winText.setPosition({240, 330});
+    sf::Text teleText(font, "Teleports: " + std::to_string(numports), 32);
+    teleText.setPosition({50, 1200});
 
 
     sf::Text startText(font, "Press S to start", 36);
     startText.setPosition({240, 330});
     sf::Text reloadInfo(font, "Notes: There is a reload period of 3\nseconds every 10 bullets, so be careful.", 36);
     reloadInfo.setPosition({20, 370});
-    sf::Text otherInfo(font, "You cannot kill drones (the red pentagons).\nDestroying cannons does not take\naway from base health.", 36);
+    sf::Text otherInfo(font, "You cannot kill drones (the red pentagons).\nDestroying cannons does not take\naway from base health.\nYou can only teleport three times.", 36);
     otherInfo.setPosition({20, 470}); 
-    sf::Text goodluck(font, "Controls:\nUp arrow: Move forward\nLeft Arrow: Turn left\nRight Arrow: Turn right\nSpace: Fire bullets", 36);
+    sf::Text goodluck(font, "Controls:\nUp arrow: Move forward\nLeft Arrow: Turn left\nRight Arrow: Turn right\nSpace: Fire bullets\nT: Teleport back to starting position.", 36);
     goodluck.setPosition({50, 900});
     sf::Text reloadText(font, "Reloading", 36);
     reloadText.setPosition({50, 1090});
+    //music/sound 
+    //MAIN MUSIC IS THE INSTRUMENTAL VERSION OF MONEY SO BIG BY YEAT DOWNLOADED FROM THE YOUTUBE VIDEO
+    //https://www.youtube.com/watch?v=QEm-GiEeUP0
+    //BOMB SOUND EFFECT FROM https://www.youtube.com/watch?v=rGjIlKHcC4A&list=PLhDaYj5fPnIqLNz8gN-MA1J2tWFm99JbH&index=3
+    //enemy bullet sound effect from https://www.youtube.com/watch?v=k-ghS5Juqpo
+    sf::Music music("yeat.mp3");
+    music.setVolume(80);
+    music.play();
+    sf::SoundBuffer buffer;
+    if (!buffer.loadFromFile("bomb.mp3")) return -1;
+    sf::Sound bombSound(buffer);
+    bombSound.setVolume(100);
+    sf::SoundBuffer bulletbuffer;
+    if (!bulletbuffer.loadFromFile("enemybul.mp3")) return -1;
+    sf::Sound enemyBulletSound(bulletbuffer);
+    enemyBulletSound.setVolume(40);
+    sf::SoundBuffer bulletbuffertwo;
+    if (!bulletbuffertwo.loadFromFile("bul.mp3")) return -1;
+    std::vector<sf::Sound> bulletSounds;
+    for (int i = 0; i < 16; i++) {
+        sf::Sound bulletSound(bulletbuffertwo);
+        bulletSound.setVolume(40);
+        bulletSounds.push_back(bulletSound);
+    } 
+    int numbullets = 0;
+    sf::Vector2f perpos;
+
 
 
 
@@ -329,7 +363,7 @@ int main() {
         {
             if (event->is<sf::Event::Closed>()) window.close();
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape)) window.close();
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S) && gameLost == false && gameWon == false ) {
                 gameOver = false;
                 gameStart = true;
                 clock.restart();
@@ -341,6 +375,7 @@ int main() {
 
                 if (keyEvent && keyEvent->code == sf::Keyboard::Key::Space && isCool)
                 {
+                    bulletSounds[numbullets].play();
                     bullet fire;
                     fire.circ.setFillColor(sf::Color::Red);
                     fire.circ.setPosition(bulStartPos);
@@ -348,9 +383,20 @@ int main() {
                     BulletDirections.push_back({XV * 1.5f, YV * 1.5f});
                     Bullets.push_back(fire);
                     FiredBullets.push_back(fire);
+                    if (numbullets < 15) numbullets += 1;
+                    else numbullets = 0;
+                }
+                else if (keyEvent && keyEvent->code == sf::Keyboard::Key::T) {
+                if (numports > 0) {
+                    numports -= 1;
+                    person.body.setPosition({345.f, 1000.f});
+                    shipShield.circ.setPosition({315, 970});
+                    teleText.setString("Teleports: " + std::to_string(numports));
                 }
             }
+            }
         }
+        perpos = person.body.getPosition();
         
         if (gameOver == false) {
         bulStartPos = person.body.getTransform().transformPoint(person.body.getPoint(0));
@@ -359,9 +405,11 @@ int main() {
         YV = 2 * std::sin(pi / 2 - rad_theta) * -1;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) {
             if (person.body.getGlobalBounds().findIntersection(enemyBase.base.getGlobalBounds())) {
+                bombSound.play();
                 gameOver = true;
                 gameLost = true;
             }
+            if (perpos.x > 0 && perpos.x < 700 && perpos.y < 1280)
             person.move({XV, YV}); 
             shipShield.circ.move({XV, YV});
         }
@@ -374,7 +422,7 @@ int main() {
             theta += 4; 
         }
         if (theta == 360 || theta == -360) {
-            //theta = 0;
+            theta = 0;
         }
         //moving stars
         for (int i = 0; i < Stars.size(); i++) {
@@ -390,6 +438,7 @@ int main() {
         //enemy bullets --------------
         timetracker += clock.restart();
         if (timetracker >= interval) {
+            enemyBulletSound.play();
             for (int i = 0; i < 3; i++) {
             randomCannon = randCannon(gen);
             enemyRadTheta = aim(person.body.getPosition(), Cannons[randomCannon].circ.getPosition());
@@ -401,7 +450,7 @@ int main() {
             enemyBulletDirections.push_back({EXV, EYV});  
         } 
         for (int i = 0; i < Drones.size(); i++) {
-            enemyRadTheta = droneAngle(gen) * pi / 180;
+            enemyRadTheta = aim(person.body.getPosition(), Drones[i].pent.getPosition());
             EXV = 3 * std::cos(enemyRadTheta);
             EYV = 3 * std::sin(enemyRadTheta);
             bullet droneBullet;
@@ -409,11 +458,9 @@ int main() {
             enemyBullets.push_back(droneBullet);
             enemyBulletDirections.push_back({EXV, EYV});
         }
-        for (int i = 0; i < 2; i++) {
-            bomb newBomb({Cannons[randCannon(gen)].circ.getPosition()});
-            Bombs.push_back(newBomb);
+        bomb newBomb({Cannons[randCannon(gen)].circ.getPosition()});
+        Bombs.push_back(newBomb);
 
-        }
         if (randCannon(gen) == 1) {
             drone newDrone(Cannons[randCannon(gen)].circ.getPosition());
             Drones.push_back(newDrone);
@@ -528,6 +575,7 @@ int main() {
             }
             if (shipShieldHealth.health > 0) {
                 if (Bombs[i].hex.getGlobalBounds().findIntersection(shipShield.circ.getGlobalBounds())) {
+                    bombSound.play();
                     explosion newE({Bombs[i].hex.getPosition()});
                     newE.spawnTime = globalClock.getElapsedTime();
                     Bombs.erase(Bombs.begin() + i);
@@ -541,6 +589,7 @@ int main() {
             }
             else {
                 if (Bombs[i].hex.getGlobalBounds().findIntersection(person.body.getGlobalBounds())) {
+                    bombSound.play();
                     explosion newE({Bombs[i].hex.getPosition()});
                     newE.spawnTime = globalClock.getElapsedTime();
                     Bombs.erase(Bombs.begin() + i);
@@ -555,7 +604,7 @@ int main() {
             }
         }
         //checking explosions
-         currentTime = globalClock.getElapsedTime();
+        currentTime = globalClock.getElapsedTime();
         for (int i = 0; i < Explosions.size(); i++) {
             if (currentTime - Explosions[i].spawnTime >= eInterval) {
                 Explosions.erase(Explosions.begin() + i);
@@ -566,6 +615,7 @@ int main() {
         }
         if (enemyShieldHealth.health > 0) {
             if (person.body.getGlobalBounds().findIntersection(enemyShield.getGlobalBounds())) {
+                bombSound.play();
                 gameOver = true;
                 gameLost = true;
 
@@ -657,12 +707,19 @@ int main() {
         window.draw(shipText);
         window.draw(enemyShieldText);
         window.draw(enemyText);
+        if (numports > 0) window.draw(teleText);
         window.display();
     }
     else {
         window.clear();
-        if (gameLost) window.draw(loseText);
-        if (gameWon) window.draw(winText);
+        if (gameLost) {
+            window.draw(loseText);
+            music.stop();
+        }
+        if (gameWon) {
+            window.draw(winText);
+            music.stop();
+        }
         if (!gameStart) {
             window.draw(startText);
             window.draw(reloadInfo);
