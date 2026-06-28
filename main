@@ -330,6 +330,7 @@ int main() {
     //https://www.youtube.com/watch?v=QEm-GiEeUP0
     //BOMB SOUND EFFECT FROM https://www.youtube.com/watch?v=rGjIlKHcC4A&list=PLhDaYj5fPnIqLNz8gN-MA1J2tWFm99JbH&index=3
     //enemy bullet sound effect from https://www.youtube.com/watch?v=k-ghS5Juqpo
+    //player bullet sound effect from https://www.youtube.com/watch?v=0ys3cDI9cBc
     sf::Music music("yeat.mp3");
     music.setVolume(80);
     music.play();
